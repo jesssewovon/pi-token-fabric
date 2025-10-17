@@ -1,6 +1,6 @@
 {
   "name": "pi-token-fabric",
-  "version": "1.0.0",
+  "version": "1.0.0-beta.3",
   "description": "Create token on Pi Network",
   "keywords": [
     "Pi",
@@ -8,22 +8,36 @@
     "Network",
     "Asset"
   ],
-  "homepage": "https://github.com/jesssewovon/PiTokenFabricNode#readme",
+  "homepage": "https://github.com/jesssewovon/pi-token-fabric#readme",
   "bugs": {
-    "url": "https://github.com/jesssewovon/PiTokenFabricNode/issues"
+    "url": "https://github.com/jesssewovon/pi-token-fabric/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jesssewovon/PiTokenFabricNode.git"
+    "url": "git+https://github.com/jesssewovon/pi-token-fabric.git"
   },
-  "license": "ISC",
+  "license": "MIT",
   "author": "Jesssewovon",
-  "type": "commonjs",
-  "main": "index.js",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
-    "test": "npm run dev"
+    "test": "npm run dev",
+    "build": "yarn build:types && yarn build:js",
+    "build:js": "PI_ENV=production tsx esbuild.ts",
+    "build:types": "tsc --outDir dist"
   },
   "dependencies": {
     "@stellar/stellar-sdk": "^14.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
   }
 }

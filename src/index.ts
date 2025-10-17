@@ -1,35 +1,52 @@
-import * as StellarSdk from "@stellar/stellar-sdk";
-import { Keypair, TransactionBuilder, Operation, Asset, Networks } from "@stellar/stellar-sdk";
-import { NetworkPassphrase} from "./types";
+import {
+  Keypair,
+  TransactionBuilder,
+  Operation,
+  Asset,
+  Networks,
+  Horizon,
+  StrKey,
+} from "@stellar/stellar-sdk";
+import { NetworkPassphrase } from "./types/index.js";
 
-export default class PiTokenFabric {
+export class PiTokenFabric {
+  private assetName: string;
+  private amount: number;
+  private limit: number;
+  private issuerKeypair: Keypair;
+  private distributorKeypair: Keypair;
   private networkPassphrase: NetworkPassphrase;
-  private issuerKeypair: StellarSdk.Keypair;
-  private distributorKeypair: StellarSdk.Keypair;
 
-  constructor(networkPassphrase: NetworkPassphrase, issuerWalletPrivateSeed: string, distrinutorWalletPrivateSeed: string) {
+  constructor(assetName: string, amount: number, limit: number, issuerWalletPrivateSeed: string, distrinutorWalletPrivateSeed: string, networkPassphrase: NetworkPassphrase) {
+    if (amount>limit) throw new Error("Amount cannot be greater than the limit");
+    
     this.validateSeedFormat(issuerWalletPrivateSeed);
     this.validateSeedFormat(distrinutorWalletPrivateSeed);
 
+    this.assetName = assetName;
+    this.limit = limit;
+    this.amount = amount;
+    this.issuerKeypair = Keypair.fromSecret(issuerWalletPrivateSeed);
+    this.distributorKeypair = Keypair.fromSecret(distrinutorWalletPrivateSeed);
     this.networkPassphrase = networkPassphrase;
-    this.issuerKeypair = StellarSdk.Keypair.fromSecret(issuerWalletPrivateSeed);
-    this.distributorKeypair = StellarSdk.Keypair.fromSecret(distrinutorWalletPrivateSeed);
   }
 
   public createToken = async() => {
     const server = this.getHorizonClient(this.networkPassphrase)
     // 1. Distributor trusts the asset
+    // create trustline on distributor
     const distributorAccount = await server.loadAccount(this.distributorKeypair.publicKey());
     const baseFee = await server.fetchBaseFee();
   
-    const token = new Asset("PIKET", this.issuerKeypair.publicKey());
+    const token = new Asset(this.assetName, this.issuerKeypair.publicKey());
   
     const trustTx = new TransactionBuilder(distributorAccount, {
       fee: baseFee.toString(),
       networkPassphrase: this.networkPassphrase
     })
     .addOperation(Operation.changeTrust({
-      asset: token
+      asset: token,
+      limit: this.limit.toString(),// Token limit
     }))
     .setTimeout(100)
     .build();
@@ -39,15 +56,21 @@ export default class PiTokenFabric {
     console.log("Distributor trusts the token on Pi");
   
     // 2. Issuer issues (sends) tokens to distributor
+    // Send tokens from issuer to distributor
     const issuerAccount = await server.loadAccount(this.issuerKeypair.publicKey());
     const issueTx = new TransactionBuilder(issuerAccount, {
       fee: baseFee.toString(),
       networkPassphrase: this.networkPassphrase
     })
+    .addOperation(Operation.allowTrust({
+      trustor: this.distributorKeypair.publicKey(),
+      assetCode: this.assetName,
+      authorize: true,
+    }))
     .addOperation(Operation.payment({
       destination: this.distributorKeypair.publicKey(),
       asset: token,
-      amount: "1000000"
+      amount: this.amount.toString()//Initial supply (<= token limit)
     }))
     .setTimeout(100)
     .build();
@@ -62,7 +85,7 @@ export default class PiTokenFabric {
     if (typeof seed !== "string") throw new Error("wallet_private_seed_not_string");
     if (!seed.startsWith("S")) throw new Error("wallet_private_seed_not_starts_with_S");
     if (seed.length !== 56) throw new Error("wallet_private_seed_not_56_chars_long");
-    if (!StellarSdk.StrKey.isValidEd25519SecretSeed(seed)) throw new Error("invalid_wallet_private_seed");
+    if (!StrKey.isValidEd25519SecretSeed(seed)) throw new Error("invalid_wallet_private_seed");
   };
 
   private isMainnet = (passphrase: NetworkPassphrase) => {
@@ -73,8 +96,25 @@ export default class PiTokenFabric {
     const serverUrl = this.isMainnet(network)
       ? 'https://api.mainnet.minepi.com'
       : 'https://api.testnet.minepi.com';
-    return new StellarSdk.Horizon.Server(serverUrl);
+    return new Horizon.Server(serverUrl);
   };
 }
 
-//export { PiPaymentError };
+/* export async function checkBalances(network, publicKey) {
+  const serverUrl = network==="pi Network"
+      ? 'https://api.mainnet.minepi.com'
+      : 'https://api.testnet.minepi.com';
+  const server = new Horizon.Server(serverUrl);
+
+  const account = await server.loadAccount(publicKey);
+  console.log("Balances for account:", publicKey);
+  account.balances.forEach((balance) => {
+    if (balance.asset_type === "native") {
+      console.log(`XLM: ${balance.balance}`);
+    } else {
+      console.log(`${balance.asset_code}: ${balance.balance} (issuer: ${balance.asset_issuer})`);
+    }
+  });
+} */
+
+export default PiTokenFabric;
