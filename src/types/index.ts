@@ -1,0 +1,1 @@
+export type NetworkPassphrase = "Pi Network" | "Pi Testnet";
