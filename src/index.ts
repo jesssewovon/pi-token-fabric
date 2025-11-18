@@ -111,7 +111,7 @@ export class PiTokenFabric {
 }
 
 export const checkBalances = async (network, publicKey) => {
-  const serverUrl = network==="pi Network"
+  const serverUrl = network==="Pi Network"
       ? 'https://api.mainnet.minepi.com'
       : 'https://api.testnet.minepi.com';
   const server = new Horizon.Server(serverUrl);
